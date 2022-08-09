@@ -1,4 +1,5 @@
 import {mountWithTheme} from 'sentry-test/enzyme';
+import {render, screen, userEvent, waitFor} from 'sentry-test/reactTestingLibrary';
 
 import {Client} from 'sentry/api';
 import {SmartSearchBar} from 'sentry/components/smartSearchBar';
@@ -8,7 +9,7 @@ import TagStore from 'sentry/stores/tagStore';
 import {FieldKey} from 'sentry/utils/fields';
 
 describe('SmartSearchBar', function () {
-  let location, options, organization, supportedTags;
+  let defaultProps, location, options, organization, supportedTags;
   let environmentTagValuesMock;
   const tagValuesMock = jest.fn(() => Promise.resolve([]));
 
@@ -60,6 +61,17 @@ describe('SmartSearchBar', function () {
       url: '/projects/123/456/tags/environment/values/',
       body: [],
     });
+
+    defaultProps = {
+      query: '',
+      organization,
+      location,
+      supportedTags,
+      onGetTagValues: jest.fn().mockResolvedValue([]),
+      onSearch: jest.fn(),
+    };
+
+    // jest.resetAllMocks();
   });
 
   afterEach(function () {
@@ -67,229 +79,139 @@ describe('SmartSearchBar', function () {
   });
 
   it('quotes in values with spaces when autocompleting', async function () {
-    jest.useRealTimers();
-    const getTagValuesMock = jest.fn().mockImplementation(() => {
-      return Promise.resolve(['this is filled with spaces']);
-    });
-    const onSearch = jest.fn();
-    const props = {
-      orgId: 'org-slug',
-      projectId: '0',
-      query: '',
-      location,
-      organization,
-      supportedTags,
-      onGetTagValues: getTagValuesMock,
-      onSearch,
-    };
-    const searchBar = mountWithTheme(
-      <SmartSearchBar {...props} api={new Client()} />,
+    const onGetTagValuesMock = jest
+      .fn()
+      .mockResolvedValue(['this is filled with spaces']);
 
-      options
-    );
-    searchBar.find('textarea').simulate('focus');
-    searchBar.find('textarea').simulate('change', {target: {value: 'device:this'}});
-    await tick();
+    render(<SmartSearchBar {...defaultProps} onGetTagValues={onGetTagValuesMock} />);
 
-    const preventDefault = jest.fn();
-    searchBar.find('textarea').simulate('keyDown', {key: 'ArrowDown'});
-    searchBar.find('textarea').simulate('keyDown', {key: 'Enter', preventDefault});
-    await tick();
+    const textbox = screen.getByRole('textbox');
+    userEvent.click(textbox);
+    userEvent.type(textbox, 'device:this');
 
-    expect(searchBar.find('textarea').props().value).toEqual(
-      'device:"this is filled with spaces" '
-    );
+    const option = await screen.findByText(/this is filled with spaces/);
+
+    userEvent.click(option);
+
+    expect(textbox).toHaveValue('device:"this is filled with spaces" ');
   });
 
   it('escapes quotes in values properly when autocompleting', async function () {
-    jest.useRealTimers();
-    const getTagValuesMock = jest.fn().mockImplementation(() => {
-      return Promise.resolve(['this " is " filled " with " quotes']);
-    });
-    const onSearch = jest.fn();
-    const props = {
-      orgId: 'org-slug',
-      projectId: '0',
-      query: '',
-      location,
-      organization,
-      supportedTags,
-      onGetTagValues: getTagValuesMock,
-      onSearch,
-    };
-    const searchBar = mountWithTheme(
-      <SmartSearchBar {...props} api={new Client()} />,
+    const onGetTagValuesMock = jest
+      .fn()
+      .mockResolvedValue(['this " is " filled " with " quotes']);
 
-      options
-    );
-    searchBar.find('textarea').simulate('focus');
-    searchBar.find('textarea').simulate('change', {target: {value: 'device:this'}});
-    await tick();
+    render(<SmartSearchBar {...defaultProps} onGetTagValues={onGetTagValuesMock} />);
 
-    const preventDefault = jest.fn();
-    searchBar.find('textarea').simulate('keyDown', {key: 'ArrowDown'});
-    searchBar.find('textarea').simulate('keyDown', {key: 'Enter', preventDefault});
-    await tick();
+    const textbox = screen.getByRole('textbox');
+    userEvent.click(textbox);
+    userEvent.type(textbox, 'device:this');
 
-    expect(searchBar.find('textarea').props().value).toEqual(
-      'device:"this \\" is \\" filled \\" with \\" quotes" '
-    );
+    const option = await screen.findByText(/this \\" is \\" filled \\" with \\" quotes/);
+
+    userEvent.click(option);
+
+    expect(textbox).toHaveValue('device:"this \\" is \\" filled \\" with \\" quotes" ');
   });
 
-  it('does not preventDefault when there are no search items and is loading and enter is pressed', async function () {
-    jest.useRealTimers();
-    const getTagValuesMock = jest.fn().mockImplementation(() => {
-      return new Promise(() => {});
-    });
-    const onSearch = jest.fn();
-    const props = {
-      orgId: 'org-slug',
-      projectId: '0',
-      query: '',
-      location,
-      organization,
-      supportedTags,
-      onGetTagValues: getTagValuesMock,
-      onSearch,
-    };
+  it('does not search when pressing enter on a tag without a value', function () {
+    const onSearchMock = jest.fn();
 
-    const searchBar = mountWithTheme(
-      <SmartSearchBar {...props} api={new Client()} />,
+    render(<SmartSearchBar {...defaultProps} onSearch={onSearchMock} />);
 
-      options
-    );
-    searchBar.find('textarea').simulate('focus');
-    searchBar.find('textarea').simulate('change', {target: {value: 'browser:'}});
-    await tick();
+    const textbox = screen.getByRole('textbox');
+    userEvent.type(textbox, 'browser:{enter}');
 
-    // press enter
-    const preventDefault = jest.fn();
-    searchBar.find('textarea').simulate('keyDown', {key: 'Enter', preventDefault});
-    expect(onSearch).not.toHaveBeenCalled();
-    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onSearchMock).not.toHaveBeenCalled();
   });
 
-  it('calls preventDefault when there are existing search items and is loading and enter is pressed', async function () {
-    jest.useRealTimers();
-    const getTagValuesMock = jest.fn().mockImplementation(() => {
-      return new Promise(() => {});
+  it('autocompletes value with tab', async function () {
+    const onSearchMock = jest.fn();
+
+    render(<SmartSearchBar {...defaultProps} onSearch={onSearchMock} />);
+
+    const textbox = screen.getByRole('textbox');
+    userEvent.type(textbox, 'bro');
+
+    expect(await screen.findByTestId('search-autocomplete-item')).toBeInTheDocument();
+
+    // down once to 'browser' dropdown item
+    userEvent.keyboard('{ArrowDown}{Tab}');
+
+    await waitFor(() => {
+      expect(textbox).toHaveValue('browser:');
     });
-    const onSearch = jest.fn();
-    const props = {
-      orgId: 'org-slug',
-      projectId: '0',
-      query: '',
-      location,
-      organization,
-      supportedTags,
-      onGetTagValues: getTagValuesMock,
-      onSearch,
-    };
 
-    const searchBar = mountWithTheme(
-      <SmartSearchBar {...props} api={new Client()} />,
+    expect(textbox).toHaveFocus();
 
-      options
-    );
-    searchBar.find('textarea').simulate('focus');
-    searchBar.find('textarea').simulate('change', {target: {value: 'bro'}});
-    await tick();
+    // Should not have executed the search
+    expect(onSearchMock).not.toHaveBeenCalled();
+  });
 
-    // Can't select with tab
-    searchBar.find('textarea').simulate('keyDown', {key: 'ArrowDown'});
-    searchBar.find('textarea').simulate('keyDown', {key: 'Tab'});
-    expect(onSearch).not.toHaveBeenCalled();
+  it('autocompletes value with enter', async function () {
+    const onSearchMock = jest.fn();
 
-    searchBar.find('textarea').simulate('change', {target: {value: 'browser:'}});
-    await tick();
+    render(<SmartSearchBar {...defaultProps} onSearch={onSearchMock} />);
 
-    // press enter
-    const preventDefault = jest.fn();
-    searchBar.find('textarea').simulate('keyDown', {key: 'Enter', preventDefault});
-    expect(onSearch).not.toHaveBeenCalled();
-    // Prevent default since we need to select an item
-    expect(preventDefault).toHaveBeenCalled();
+    const textbox = screen.getByRole('textbox');
+    userEvent.type(textbox, 'bro');
+
+    expect(await screen.findByTestId('search-autocomplete-item')).toBeInTheDocument();
+
+    // down once to 'browser' dropdown item
+    userEvent.keyboard('{ArrowDown}{Enter}');
+
+    await waitFor(() => {
+      expect(textbox).toHaveValue('browser:');
+    });
+
+    expect(textbox).toHaveFocus();
+
+    // Should not have executed the search
+    expect(onSearchMock).not.toHaveBeenCalled();
   });
 
   describe('componentWillReceiveProps()', function () {
-    it('should add a space when setting state.query', function () {
-      const searchBar = mountWithTheme(
-        <SmartSearchBar
-          organization={organization}
-          location={location}
-          supportedTags={supportedTags}
-          query="one"
-        />,
-        options
-      );
+    it('should add a space when setting query', function () {
+      render(<SmartSearchBar {...defaultProps} query="one" />);
 
-      expect(searchBar.state().query).toEqual('one ');
+      expect(screen.getByRole('textbox')).toHaveValue('one ');
     });
 
-    it('should update state.query if props.query is updated from outside', function () {
-      const searchBar = mountWithTheme(
-        <SmartSearchBar
-          organization={organization}
-          location={location}
-          supportedTags={supportedTags}
-          query="one"
-        />,
-        options
-      );
+    it('updates query when prop changes', function () {
+      const {rerender} = render(<SmartSearchBar {...defaultProps} query="one" />);
 
-      searchBar.setProps({query: 'two'});
+      rerender(<SmartSearchBar {...defaultProps} query="two" />);
 
-      expect(searchBar.state().query).toEqual('two ');
+      expect(screen.getByRole('textbox')).toHaveValue('two ');
     });
 
-    it('should update state.query if props.query is updated to null/undefined from outside', function () {
-      const searchBar = mountWithTheme(
-        <SmartSearchBar
-          organization={organization}
-          location={location}
-          supportedTags={supportedTags}
-          query="one"
-        />,
-        options
-      );
+    it('updates query when prop set to falsey value', function () {
+      const {rerender} = render(<SmartSearchBar {...defaultProps} query="one" />);
 
-      searchBar.setProps({query: null});
+      rerender(<SmartSearchBar {...defaultProps} query={null} />);
 
-      expect(searchBar.state().query).toEqual('');
+      expect(screen.getByRole('textbox')).toHaveValue('');
     });
 
     it('should not reset user textarea if a noop props change happens', function () {
-      const searchBar = mountWithTheme(
-        <SmartSearchBar
-          organization={organization}
-          location={location}
-          supportedTags={supportedTags}
-          query="one"
-        />,
-        options
-      );
-      searchBar.setState({query: 'two'});
+      const {rerender} = render(<SmartSearchBar {...defaultProps} query="one" />);
 
-      searchBar.setProps({query: 'one'});
+      userEvent.type(screen.getByRole('textbox'), 'two');
 
-      expect(searchBar.state().query).toEqual('two');
+      rerender(<SmartSearchBar {...defaultProps} query="one" />);
+
+      expect(screen.getByRole('textbox')).toHaveValue('one two');
     });
 
     it('should reset user textarea if a meaningful props change happens', function () {
-      const searchBar = mountWithTheme(
-        <SmartSearchBar
-          organization={organization}
-          location={location}
-          supportedTags={supportedTags}
-          query="one"
-        />,
-        options
-      );
-      searchBar.setState({query: 'two'});
+      const {rerender} = render(<SmartSearchBar {...defaultProps} query="one" />);
 
-      searchBar.setProps({query: 'three'});
+      userEvent.type(screen.getByRole('textbox'), 'two');
 
-      expect(searchBar.state().query).toEqual('three ');
+      rerender(<SmartSearchBar {...defaultProps} query="blah" />);
+
+      expect(screen.getByRole('textbox')).toHaveValue('blah ');
     });
   });
 
