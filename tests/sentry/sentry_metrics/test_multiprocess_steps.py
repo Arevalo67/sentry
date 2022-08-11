@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 pytestmark = pytest.mark.sentry_metrics
 
+INDEXER_DB = "test-db"
+
 
 def compare_messages_ignoring_mapping_metadata(actual: Message, expected: Message) -> None:
     assert actual.offset == expected.offset
@@ -275,7 +277,8 @@ def test_process_messages() -> None:
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    new_batch = process_messages(use_case_id=UseCaseKey.RELEASE_HEALTH, outer_message=outer_message)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+    new_batch = process_messages(config=config, outer_message=outer_message)
     expected_new_batch = [
         Message(
             m.partition,
@@ -293,7 +296,7 @@ def test_process_messages() -> None:
 
 
 def test_transform_step() -> None:
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
 
     message_payloads = [counter_payload, distribution_payload, set_payload]
 
@@ -414,10 +417,10 @@ def test_process_messages_invalid_messages(
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+
     with caplog.at_level(logging.ERROR):
-        new_batch = process_messages(
-            use_case_id=UseCaseKey.RELEASE_HEALTH, outer_message=outer_message
-        )
+        new_batch = process_messages(config=config, outer_message=outer_message)
 
     # we expect just the valid counter_payload msg to be left
     expected_msg = message_batch[0]
@@ -478,10 +481,9 @@ def test_process_messages_rate_limited(caplog, settings) -> None:
     # Insert a None-value into the mock-indexer to simulate a rate-limit.
     backend.indexer._strings[1]["rate_limited_test"] = None
 
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
     with caplog.at_level(logging.ERROR):
-        new_batch = process_messages(
-            use_case_id=UseCaseKey.RELEASE_HEALTH, outer_message=outer_message
-        )
+        new_batch = process_messages(config=config, outer_message=outer_message)
 
     # we expect just the counter_payload msg to be left, as that one didn't
     # cause/depend on string writes that have been rate limited

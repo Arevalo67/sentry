@@ -70,7 +70,7 @@ class TransformStep(ProcessingStep[MessageBatch]):  # type: ignore
         self, next_step: ProcessingStep[KafkaPayload], config: MetricsIngestConfiguration
     ) -> None:
         self.__process_messages: Callable[[Message[MessageBatch]], MessageBatch] = partial(
-            process_messages, config.use_case_id
+            process_messages, config
         )
         self.__next_step = next_step
         self.__closed = False

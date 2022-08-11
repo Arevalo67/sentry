@@ -86,7 +86,11 @@ class DroppedString:
 class RateLimitState:
     _writes_limiter: WritesLimiter
     _use_case_id: UseCaseKey
+<<<<<<< HEAD
     _namespace: str
+=======
+    _indexer_db: str
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
     _requests: Sequence[RequestedQuota]
     _grants: Sequence[GrantedQuota]
     _timestamp: Timestamp
@@ -103,7 +107,11 @@ class RateLimitState:
         Consumes the rate limits returned by `check_write_limits`.
         """
         if exc_type is None:
+<<<<<<< HEAD
             self._writes_limiter._get_rate_limiter(self._use_case_id, self._namespace).use_quotas(
+=======
+            self._writes_limiter._get_rate_limiter(self._use_case_id, self._indexer_db).use_quotas(
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
                 self._requests, self._grants, self._timestamp
             )
 
@@ -113,17 +121,29 @@ class WritesLimiter:
         self.rate_limiters: MutableMapping[str, RedisSlidingWindowRateLimiter] = {}
 
     def _get_rate_limiter(
+<<<<<<< HEAD
         self, use_case_id: UseCaseKey, namespace: str
     ) -> RedisSlidingWindowRateLimiter:
         if namespace not in self.rate_limiters:
             options = get_ingest_config(use_case_id).writes_limiter_cluster_options
             self.rate_limiters[namespace] = RedisSlidingWindowRateLimiter(**options)
+=======
+        self, use_case_id: UseCaseKey, indexer_db: str
+    ) -> RedisSlidingWindowRateLimiter:
+        if use_case_id not in self.rate_limiters:
+            options = get_ingest_config(use_case_id, indexer_db).writes_limiter_cluster_options
+            self.rate_limiters[use_case_id] = RedisSlidingWindowRateLimiter(**options)
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
 
         return self.rate_limiters[namespace]
 
     @metrics.wraps("sentry_metrics.indexer.check_write_limits")
     def check_write_limits(
+<<<<<<< HEAD
         self, use_case_id: UseCaseKey, namespace: str, keys: KeyCollection
+=======
+        self, use_case_id: UseCaseKey, keys: KeyCollection, indexer_db: str
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
     ) -> RateLimitState:
         """
         Takes a KeyCollection and applies DB write limits as configured via sentry.options.
@@ -138,8 +158,13 @@ class WritesLimiter:
         Upon (successful) exit, rate limits are consumed.
         """
 
+<<<<<<< HEAD
         org_ids, requests = _construct_quota_requests(use_case_id, namespace, keys)
         timestamp, grants = self._get_rate_limiter(use_case_id, namespace).check_within_quotas(
+=======
+        org_ids, requests = _construct_quota_requests(use_case_id, keys)
+        timestamp, grants = self._get_rate_limiter(use_case_id, indexer_db).check_within_quotas(
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
             requests
         )
 
@@ -172,7 +197,11 @@ class WritesLimiter:
         state = RateLimitState(
             _writes_limiter=self,
             _use_case_id=use_case_id,
+<<<<<<< HEAD
             _namespace=namespace,
+=======
+            _indexer_db=indexer_db,
+>>>>>>> 2f263eba4e (ref(indexer): allow  spanner indexer in prod)
             _requests=requests,
             _grants=grants,
             _timestamp=timestamp,
