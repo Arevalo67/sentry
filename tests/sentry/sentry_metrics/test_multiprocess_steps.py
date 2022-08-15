@@ -19,6 +19,7 @@ from sentry.sentry_metrics.consumers.indexer.common import (
 )
 from sentry.sentry_metrics.consumers.indexer.multiprocess import TransformStep
 from sentry.sentry_metrics.consumers.indexer.processing import process_messages
+from sentry.sentry_metrics.db import POSTGRES_DB
 from sentry.sentry_metrics.indexer.mock import MockIndexer
 from sentry.snuba.metrics.naming_layer.mri import SessionMRI
 from sentry.utils import json
@@ -27,8 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 pytestmark = pytest.mark.sentry_metrics
-
-INDEXER_DB = "test-db"
 
 
 def compare_messages_ignoring_mapping_metadata(actual: Message, expected: Message) -> None:
@@ -277,7 +276,7 @@ def test_process_messages() -> None:
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
     new_batch = process_messages(config=config, outer_message=outer_message)
     expected_new_batch = [
         Message(
@@ -296,7 +295,7 @@ def test_process_messages() -> None:
 
 
 def test_transform_step() -> None:
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
 
     message_payloads = [counter_payload, distribution_payload, set_payload]
 
@@ -417,7 +416,7 @@ def test_process_messages_invalid_messages(
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
 
     with caplog.at_level(logging.ERROR):
         new_batch = process_messages(config=config, outer_message=outer_message)
@@ -481,7 +480,7 @@ def test_process_messages_rate_limited(caplog, settings) -> None:
     # Insert a None-value into the mock-indexer to simulate a rate-limit.
     backend.indexer._strings[1]["rate_limited_test"] = None
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, INDEXER_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
     with caplog.at_level(logging.ERROR):
         new_batch = process_messages(config=config, outer_message=outer_message)
 
