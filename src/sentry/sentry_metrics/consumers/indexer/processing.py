@@ -2,14 +2,20 @@ import logging
 
 from arroyo.types import Message
 
-from sentry.sentry_metrics import indexer
-from sentry.sentry_metrics.configuration import MetricsIngestConfiguration, UseCaseKey
+from sentry.sentry_metrics.configuration import (
+    CLOUDSPANNER_DB,
+    POSTGRES_DB,
+    MetricsIngestConfiguration,
+)
 from sentry.sentry_metrics.consumers.indexer.batch import IndexerBatch
 from sentry.sentry_metrics.consumers.indexer.common import MessageBatch
-from sentry.sentry_metrics.indexer.cloudspanner import CloudSpannerIndexer
+from sentry.sentry_metrics.indexer.cloudspanner.cloudspanner import CloudSpannerIndexer
+from sentry.sentry_metrics.indexer.postgres.postgres_v2 import PostgresIndexer
 from sentry.utils import metrics
 
 logger = logging.getLogger(__name__)
+
+DB_INDEXER_MAP = {CLOUDSPANNER_DB: CloudSpannerIndexer, POSTGRES_DB: PostgresIndexer}
 
 
 def process_messages(
@@ -37,6 +43,8 @@ def process_messages(
     batch = IndexerBatch(config.use_case_id, outer_message)
 
     org_strings = batch.extract_strings()
+
+    indexer = DB_INDEXER_MAP[config.db_backend]()
 
     with metrics.timer("metrics_consumer.bulk_record"):
         record_result = indexer.bulk_record(use_case_id=config.use_case_id, org_strings=org_strings)
