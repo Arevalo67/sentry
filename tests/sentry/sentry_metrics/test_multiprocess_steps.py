@@ -10,7 +10,7 @@ from arroyo.backends.kafka import KafkaPayload
 from arroyo.processing.strategies import MessageRejected
 from arroyo.types import Message, Partition, Topic
 
-from sentry.sentry_metrics.configuration import POSTGRES_DB, UseCaseKey, get_ingest_config
+from sentry.sentry_metrics.configuration import IndexerStorage, UseCaseKey, get_ingest_config
 from sentry.sentry_metrics.consumers.indexer.batch import invalid_metric_tags, valid_metric_name
 from sentry.sentry_metrics.consumers.indexer.common import (
     BatchMessages,
@@ -275,7 +275,7 @@ def test_process_messages() -> None:
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.POSTGRES)
     new_batch = process_messages(config=config, outer_message=outer_message)
     expected_new_batch = [
         Message(
@@ -294,7 +294,7 @@ def test_process_messages() -> None:
 
 
 def test_transform_step() -> None:
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.POSTGRES)
 
     message_payloads = [counter_payload, distribution_payload, set_payload]
 
@@ -415,7 +415,7 @@ def test_process_messages_invalid_messages(
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.POSTGRES)
 
     with caplog.at_level(logging.ERROR):
         new_batch = process_messages(config=config, outer_message=outer_message)
@@ -479,7 +479,7 @@ def test_process_messages_rate_limited(caplog, settings) -> None:
     # Insert a None-value into the mock-indexer to simulate a rate-limit.
     backend.indexer._strings[1]["rate_limited_test"] = None
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, POSTGRES_DB)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.POSTGRES)
     with caplog.at_level(logging.ERROR):
         new_batch = process_messages(config=config, outer_message=outer_message)
 
