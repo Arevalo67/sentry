@@ -11,7 +11,7 @@ from sentry.ratelimits.sliding_windows import (
     RequestedQuota,
     Timestamp,
 )
-from sentry.sentry_metrics.configuration import UseCaseKey, get_ingest_config
+from sentry.sentry_metrics.configuration import IndexerStorage, UseCaseKey, get_ingest_config
 from sentry.sentry_metrics.indexer.base import FetchType, FetchTypeExt, KeyCollection, KeyResult
 from sentry.utils import metrics
 
@@ -87,7 +87,7 @@ class RateLimitState:
     _writes_limiter: WritesLimiter
     _use_case_id: UseCaseKey
     _namespace: str
-    _db_backend: str
+    _db_backend: IndexerStorage
     _requests: Sequence[RequestedQuota]
     _grants: Sequence[GrantedQuota]
     _timestamp: Timestamp
@@ -114,7 +114,7 @@ class WritesLimiter:
         self.rate_limiters: MutableMapping[str, RedisSlidingWindowRateLimiter] = {}
 
     def _get_rate_limiter(
-        self, use_case_id: UseCaseKey, namespace: str, db_backend: str
+        self, use_case_id: UseCaseKey, namespace: str, db_backend: IndexerStorage
     ) -> RedisSlidingWindowRateLimiter:
         if namespace not in self.rate_limiters:
             options = get_ingest_config(use_case_id, db_backend).writes_limiter_cluster_options
@@ -124,7 +124,11 @@ class WritesLimiter:
 
     @metrics.wraps("sentry_metrics.indexer.check_write_limits")
     def check_write_limits(
-        self, use_case_id: UseCaseKey, namespace: str, db_backend: str, keys: KeyCollection
+        self,
+        use_case_id: UseCaseKey,
+        namespace: str,
+        db_backend: IndexerStorage,
+        keys: KeyCollection,
     ) -> RateLimitState:
         """
         Takes a KeyCollection and applies DB write limits as configured via sentry.options.
