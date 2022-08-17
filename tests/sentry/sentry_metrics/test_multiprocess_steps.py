@@ -18,7 +18,7 @@ from sentry.sentry_metrics.consumers.indexer.common import (
     MetricsBatchBuilder,
 )
 from sentry.sentry_metrics.consumers.indexer.multiprocess import TransformStep
-from sentry.sentry_metrics.consumers.indexer.processing import process_messages
+from sentry.sentry_metrics.consumers.indexer.processing import STORAGE_TO_INDEXER, process_messages
 from sentry.sentry_metrics.indexer.mock import MockIndexer
 from sentry.snuba.metrics.naming_layer.mri import SessionMRI
 from sentry.utils import json
@@ -474,12 +474,12 @@ def test_process_messages_rate_limited(caplog, settings) -> None:
     last = message_batch[-1]
     outer_message = Message(last.partition, last.offset, message_batch, last.timestamp)
 
-    from sentry.sentry_metrics.indexer import backend
-
+    indexer = STORAGE_TO_INDEXER[IndexerStorage.MOCK]
     # Insert a None-value into the mock-indexer to simulate a rate-limit.
-    backend.indexer._strings[1]["rate_limited_test"] = None
+    indexer.indexer._strings[1]["rate_limited_test"] = None
 
-    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.POSTGRES)
+    config = get_ingest_config(UseCaseKey.RELEASE_HEALTH, IndexerStorage.MOCK)
+
     with caplog.at_level(logging.ERROR):
         new_batch = process_messages(config=config, outer_message=outer_message)
 
